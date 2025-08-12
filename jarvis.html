@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis AI HUD</title>
+<style>
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    color: white;
+    background: radial-gradient(circle at center, #00111a, #000);
+    overflow: hidden;
+  }
+
+  /* Animated background */
+  body::before {
+    content: "";
+    position: fixed;
+    width: 200%;
+    height: 200%;
+    background: repeating-radial-gradient(circle, rgba(0,200,255,0.2), transparent 100px);
+    animation: moveBg 20s linear infinite;
+    z-index: -1;
+  }
+  @keyframes moveBg {
+    from { transform: translate(0,0); }
+    to { transform: translate(-200px,-200px); }
+  }
+
+  /* Clock */
+  #clock {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    font-size: 1.2em;
+    text-shadow: 0 0 10px cyan;
+  }
+
+  /* Chat container */
+  #chat {
+    max-width: 600px;
+    margin: 70px auto 100px;
+    padding: 15px;
+    background: rgba(0, 50, 70, 0.3);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    overflow-y: auto;
+    max-height: 70vh;
+  }
+  #chat p {
+    padding: 8px;
+    border-radius: 10px;
+    margin: 8px 0;
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .user { background: rgba(0,255,255,0.2); text-align: right; }
+  .jarvis { background: rgba(0,150,255,0.3); text-align: left; }
+
+  /* Input area */
+  #inputArea {
+    position: fixed;
+    bottom: 10px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  #userInput {
+    flex: 1;
+    padding: 10px;
+    border-radius: 20px;
+    border: none;
+    outline: none;
+    margin-right: 5px;
+  }
+  button {
+    background: cyan;
+    border: none;
+    border-radius: 50%;
+    padding: 10px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="clock"></div>
+<div id="chat"></div>
+
+<div id="inputArea">
+  <input id="userInput" type="text" placeholder="Type your message...">
+  <button onclick="sendMessage()">➤</button>
+  <button onclick="startVoice()">🎤</button>
+</div>
+
+<script>
+const API_KEY = "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"; // Replace with your OpenRouter API key
+
+// Clock update
+setInterval(() => {
+  const now = new Date();
+  document.getElementById("clock").innerText = now.toLocaleTimeString();
+}, 1000);
+
+function addMessage(text, sender) {
+  const chat = document.getElementById("chat");
+  const msg = document.createElement("p");
+  msg.className = sender;
+  msg.innerText = text;
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById("userInput");
+  const message = input.value.trim();
+  if (!message) return;
+
+  addMessage("You: " + message, "user");
+  input.value = "";
+
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are Jarvis, Tony Stark's AI assistant. Always refer to yourself as Jarvis and behave like a helpful futuristic AI that can improve itself." },
+          { role: "user", content: message }
+        ]
+      })
+    });
+
+    const json = await res.json();
+    if (json.error) {
+      addMessage("Error: " + json.error.message, "jarvis");
+      return;
+    }
+
+    const reply = json.choices[0].message.content;
+    addMessage("Jarvis: " + reply, "jarvis");
+    speak(reply);
+  } catch (e) {
+    addMessage("Connection error.", "jarvis");
+  }
+}
+
+function speak(text) {
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "en-US";
+  speechSynthesis.speak(utter);
+}
+
+function startVoice() {
+  const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  rec.lang = "en-US";
+  rec.start();
+  rec.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    document.getElementById("userInput").value = transcript;
+    sendMessage();
+  };
+}
+</script>
+</body>
+</html>
